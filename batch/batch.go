@@ -2,7 +2,6 @@ package batch
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 
@@ -53,6 +52,15 @@ func WithRateLimit(rps int) func(*BatchConfig) {
 	return func(c *BatchConfig) {
 		if rps > 0 {
 			c.RateLimit = rate.Limit(rps)
+		}
+	}
+}
+
+// WithBurst 配置限流桶大小，需与 WithRateLimit 配合使用
+func WithBurst(n int) func(*BatchConfig) {
+	return func(c *BatchConfig) {
+		if n > 0 {
+			c.Burst = n
 		}
 	}
 }
@@ -136,10 +144,8 @@ func (b *BatchExecutor[T]) Execute(ctx context.Context, items []T, handler func(
 		return err // 返回第一个遇到的错误 (Fail Fast)
 	}
 
-	// 如果配置了忽略错误，但有错误发生，可以选择在这里聚合返回
 	if b.config.IgnoreError && len(errs) > 0 {
-		// 这里简化处理，可以返回自定义的 MultiError 类型
-		return errors.New("batch execution finished with some errors")
+		return fmt.Errorf("batch finished with %d error(s), first: %w", len(errs), errs[0])
 	}
 
 	return nil

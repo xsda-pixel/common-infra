@@ -183,7 +183,47 @@ func (db *RepoDB[T]) FindMany(tableName string, fields []string, where WhereOpti
 	rs = rs.Find(&list)
 
 	if rs.Error != nil {
-		logs.Logger.Error(rs.Error.Error())
+		logs.Logger.Error(rs.Error)
+		return nil, dbErr
+	}
+
+	return list, nil
+}
+
+func (db *RepoDB[T]) FindManyWithGroupBy(
+	tableName string,
+	fields []string,
+	groupBy string,
+	where WhereOption,
+	order *string,
+	limit *int,
+) ([]*T, errors.Error) {
+	var list []*T
+
+	rs := db.MySQL.Table(tableName)
+
+	if len(fields) > 0 {
+		rs = rs.Select(fields)
+	}
+
+	if groupBy != "" {
+		rs = rs.Group(groupBy)
+	}
+
+	rs = applyWhere(rs, where)
+
+	if order != nil && *order != "" {
+		rs = rs.Order(*order)
+	}
+
+	if limit != nil && *limit > 0 {
+		rs = rs.Limit(*limit)
+	}
+
+	rs = rs.Find(&list)
+
+	if rs.Error != nil {
+		logs.Logger.Error(rs.Error)
 		return nil, dbErr
 	}
 
@@ -220,7 +260,7 @@ func (db *RepoDB[T]) FindPage(
 	rs = rs.Limit(limit).Offset((page - 1) * limit).Find(&list)
 
 	if rs.Error != nil {
-		logs.Logger.Error(rs.Error.Error())
+		logs.Logger.Error(rs.Error)
 		return nil, dbErr
 	}
 
@@ -241,7 +281,7 @@ func (db *RepoDB[T]) Count(
 	rs = rs.Count(&count)
 
 	if rs.Error != nil {
-		logs.Logger.Error(rs.Error.Error())
+		logs.Logger.Error(rs.Error)
 		return 0, dbErr
 	}
 
@@ -281,7 +321,7 @@ func (db *RepoDB[T]) Exists(
 	rs = rs.Limit(1).Scan(&tmp)
 
 	if rs.Error != nil {
-		logs.Logger.Error(rs.Error.Error())
+		logs.Logger.Error(rs.Error)
 		return false, dbErr
 	}
 
@@ -294,7 +334,7 @@ func (db *RepoDB[T]) Update(
 	where WhereOption,
 	updates map[string]any,
 ) (int64, errors.Error) {
-	if updates == nil || len(updates) == 0 {
+	if len(updates) == 0 {
 		return 0, nil
 	}
 
@@ -305,7 +345,7 @@ func (db *RepoDB[T]) Update(
 	rs = rs.Updates(updates)
 
 	if rs.Error != nil {
-		logs.Logger.Error(rs.Error.Error())
+		logs.Logger.Error(rs.Error)
 		return 0, dbErr
 	}
 
@@ -319,7 +359,7 @@ func (db *RepoDB[T]) Delete(
 ) (int64, errors.Error) {
 	rs := dbs.Table(tableName)
 
-	if (where.Eq == nil || len(where.Eq) == 0) && where.Raw == nil {
+	if len(where.Eq) == 0 && where.Raw == nil {
 		return 0, errors.NewError(http.StatusBadRequest, errors.NewMsg("delete without where is forbidden")) // 防止误删
 	}
 
@@ -328,7 +368,7 @@ func (db *RepoDB[T]) Delete(
 	rs = rs.Delete(nil)
 
 	if rs.Error != nil {
-		logs.Logger.Error(rs.Error.Error())
+		logs.Logger.Error(rs.Error)
 		return 0, dbErr
 	}
 
@@ -366,7 +406,7 @@ func (db *RepoDB[T]) FindManyWithJoin(
 	rs = rs.Find(&list)
 
 	if rs.Error != nil {
-		logs.Logger.Error(rs.Error.Error())
+		logs.Logger.Error(rs.Error)
 		return nil, dbErr
 	}
 
@@ -404,7 +444,7 @@ func (db *RepoDB[T]) FindPageWithJoin(
 	rs = rs.Limit(limit).Offset((page - 1) * limit).Find(&list)
 
 	if rs.Error != nil {
-		logs.Logger.Error(rs.Error.Error())
+		logs.Logger.Error(rs.Error)
 		return nil, dbErr
 	}
 
@@ -459,9 +499,9 @@ users, err := repo.FindManyWithJoin(
 		},
 	},
 	WhereOption{
-		Raw:  "u.status != ? AND u.id IN ?",
-		Args: []any{1, []int{1, 2, 3}},
+		Raw: &RawWhere{SQL: "u.status != ? AND u.id IN ?", Args: []any{1, []int{1, 2, 3}}},
 	},
+	ptr(""),
 	ptr(10),
 )
 
@@ -498,8 +538,7 @@ list, err := repo.FindPageWithJoin(
 		},
 	},
 	WhereOption{
-		Raw:  "u.status != ? AND u.id IN ?",
-		Args: []any{1, []int{1, 2, 3, 4}},
+		Raw: &RawWhere{SQL: "u.status != ? AND u.id IN ?", Args: []any{1, []int{1, 2, 3, 4}}},
 	},
 	ptr("u.id DESC"),
 )

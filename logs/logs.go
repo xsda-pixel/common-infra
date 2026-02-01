@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lestrrat-go/file-rotatelogs"
+	rotatelogs "github.com/lestrrat-go/file-rotatelogs"
 	"github.com/rifflock/lfshook"
 	"github.com/sirupsen/logrus"
 )
@@ -26,6 +26,20 @@ func Init(isGin, isDb, debug bool) error {
 		initErr = doInit(isGin, isDb, debug)
 	})
 	return initErr
+}
+
+const (
+	defaultLogMaxAge   = 7 * 24 * time.Hour
+	defaultLogRotation = 24 * time.Hour
+)
+
+// newRotateLogs 创建按天切割的日志 writer，默认保留 7 天
+func newRotateLogs(path string) (*rotatelogs.RotateLogs, error) {
+	return rotatelogs.New(
+		path,
+		rotatelogs.WithMaxAge(defaultLogMaxAge),
+		rotatelogs.WithRotationTime(defaultLogRotation),
+	)
 }
 
 func doInit(isGin, isDb, debug bool) error {
@@ -50,9 +64,7 @@ func doInit(isGin, isDb, debug bool) error {
 		}
 	}
 
-	// 实例化
 	logger := logrus.New()
-	// 设置日志级别
 	if debug {
 		logger.SetLevel(logrus.DebugLevel)
 	} else {
@@ -60,95 +72,34 @@ func doInit(isGin, isDb, debug bool) error {
 	}
 
 	if isGin {
-		// 设置 rotatelogs
-		GinDefaultWriter, err = rotatelogs.New(
-			// 分割后的文件名称
-			LogFilePath+"gins/default-%Y%m%d.log",
-
-			// 设置最大保存时间(7天)
-			rotatelogs.WithMaxAge(7*24*time.Hour),
-
-			// 设置日志切割时间间隔(1天)
-			rotatelogs.WithRotationTime(24*time.Hour),
-		)
+		GinDefaultWriter, err = newRotateLogs(LogFilePath + "gins/default-%Y%m%d.log")
 		if err != nil {
 			return err
 		}
-		GinErrWriter, err = rotatelogs.New(
-			// 分割后的文件名称
-			LogFilePath+"gins/err-%Y%m%d.log",
-
-			// 设置最大保存时间(7天)
-			rotatelogs.WithMaxAge(7*24*time.Hour),
-
-			// 设置日志切割时间间隔(1天)
-			rotatelogs.WithRotationTime(24*time.Hour),
-		)
+		GinErrWriter, err = newRotateLogs(LogFilePath + "gins/err-%Y%m%d.log")
 		if err != nil {
 			return err
 		}
 	}
 
-	logWriter, err = rotatelogs.New(
-		// 分割后的文件名称
-		LogFilePath+"default/log-%Y%m%d.log",
-
-		// 设置最大保存时间(7天)
-		rotatelogs.WithMaxAge(7*24*time.Hour),
-
-		// 设置日志切割时间间隔(1天)
-		rotatelogs.WithRotationTime(24*time.Hour),
-	)
+	logWriter, err = newRotateLogs(LogFilePath + "default/log-%Y%m%d.log")
 	if err != nil {
 		return err
 	}
 
 	if isDb {
-		// 设置 rotatelogs
-		DbWriter, err = rotatelogs.New(
-			// 分割后的文件名称
-			LogFilePath+"dbs/log-%Y%m%d.log",
-
-			// 设置最大保存时间(7天)
-			rotatelogs.WithMaxAge(7*24*time.Hour),
-
-			// 设置日志切割时间间隔(1天)
-			rotatelogs.WithRotationTime(24*time.Hour),
-		)
+		DbWriter, err = newRotateLogs(LogFilePath + "dbs/log-%Y%m%d.log")
 		if err != nil {
 			return err
 		}
 	}
 
-	// 设置 rotatelogs
-	errWriter, err = rotatelogs.New(
-		// 分割后的文件名称
-		LogFilePath+"errors/err-%Y%m%d.log",
-
-		// 设置最大保存时间(7天)
-		rotatelogs.WithMaxAge(7*24*time.Hour),
-
-		// 设置日志切割时间间隔(1天)
-		rotatelogs.WithRotationTime(24*time.Hour),
-	)
+	errWriter, err = newRotateLogs(LogFilePath + "errors/err-%Y%m%d.log")
 	if err != nil {
 		return err
 	}
 
-	// 设置 rotatelogs
-	infoWriter, err = rotatelogs.New(
-		// 分割后的文件名称
-		LogFilePath+"infos/info-%Y%m%d.log",
-
-		// 生成软链，指向最新日志文件
-		// rotatelogs.WithLinkName(fileName),
-
-		// 设置最大保存时间(7天)
-		rotatelogs.WithMaxAge(7*24*time.Hour),
-
-		// 设置日志切割时间间隔(1天)
-		rotatelogs.WithRotationTime(24*time.Hour),
-	)
+	infoWriter, err = newRotateLogs(LogFilePath + "infos/info-%Y%m%d.log")
 	if err != nil {
 		return err
 	}

@@ -25,7 +25,8 @@ func NewStreamWorker[T any](concurrency int, handler func(context.Context, T) er
 	}
 }
 
-// Start 开始工作（阻塞模式，直到 channel 关闭且任务全部做完）
+// Start 开始工作（阻塞模式，直到 channel 关闭且任务全部做完）。
+// 注意：handler 返回的 error 仅做内部处理，不会向调用方返回；如需收集错误请自行在 handler 内处理。
 // ctx: 用于控制整体退出的上下文
 // ch: 数据输入通道 (接收数据的地方)
 func (s *Worker[T]) Start(ctx context.Context, ch <-chan T) {
