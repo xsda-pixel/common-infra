@@ -98,6 +98,9 @@ var (
 )
 
 func (db *RepoDB[T]) CreateOne(dbs *gorm.DB, tbName string, item *T) errors.Error {
+	if item == nil {
+		return errors.NewError(http.StatusBadRequest, errors.NewMsg("CreateOne: item is nil"))
+	}
 	rs := dbs.Table(tbName).Create(item)
 	if rs.Error != nil {
 		logs.Logger.Error(rs.Error)
@@ -245,6 +248,11 @@ func (db *RepoDB[T]) FindPage(
 		return list, nil
 	}
 
+	offset := (page - 1) * limit
+	if offset < 0 {
+		return list, nil // 防止 (page-1)*limit 溢出
+	}
+
 	rs := db.MySQL.Table(tableName)
 
 	if len(fields) > 0 {
@@ -257,7 +265,7 @@ func (db *RepoDB[T]) FindPage(
 		rs = rs.Order(*order)
 	}
 
-	rs = rs.Limit(limit).Offset((page - 1) * limit).Find(&list)
+	rs = rs.Limit(limit).Offset(offset).Find(&list)
 
 	if rs.Error != nil {
 		logs.Logger.Error(rs.Error)
@@ -427,6 +435,11 @@ func (db *RepoDB[T]) FindPageWithJoin(
 		return list, nil
 	}
 
+	offset := (page - 1) * limit
+	if offset < 0 {
+		return list, nil // 防止 (page-1)*limit 溢出
+	}
+
 	rs := db.MySQL.Table(tableName)
 
 	if len(fields) > 0 {
@@ -441,7 +454,7 @@ func (db *RepoDB[T]) FindPageWithJoin(
 		rs = rs.Order(*order)
 	}
 
-	rs = rs.Limit(limit).Offset((page - 1) * limit).Find(&list)
+	rs = rs.Limit(limit).Offset(offset).Find(&list)
 
 	if rs.Error != nil {
 		logs.Logger.Error(rs.Error)

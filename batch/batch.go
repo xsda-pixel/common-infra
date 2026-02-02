@@ -113,10 +113,9 @@ func (b *BatchExecutor[T]) Execute(ctx context.Context, items []T, handler func(
 		}
 
 		g.Go(func() error {
-			// 5. Panic 恢复 (保护主程)
+			// 5. Panic 恢复 (保护主程)；生产环境建议接入 logs.Logger
 			defer func() {
 				if r := recover(); r != nil {
-					// 可以在这里记录日志
 					fmt.Printf("panic recovered processing item %d: %v\n", index, r)
 				}
 			}()
