@@ -275,6 +275,50 @@ func (db *RepoDB[T]) FindPage(
 	return list, nil
 }
 
+// FindPageWithTotal 分页查询并返回当前页数据和符合条件的总条数
+func (db *RepoDB[T]) FindPageWithTotal(
+	tableName string,
+	page, limit int,
+	fields []string,
+	where WhereOption,
+	order *string,
+) ([]*T, int64, errors.Error) {
+	var list []*T
+
+	if page < 1 || limit < 1 {
+		return list, 0, nil
+	}
+
+	offset := (page - 1) * limit
+	if offset < 0 {
+		return list, 0, nil // 防止 (page-1)*limit 溢出
+	}
+
+	total, err := db.Count(tableName, where)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	rs := db.MySQL.Table(tableName)
+	if len(fields) > 0 {
+		rs = rs.Select(fields)
+	}
+
+	rs = applyWhere(rs, where)
+	if order != nil && *order != "" {
+		rs = rs.Order(*order)
+	}
+
+	rs = rs.Limit(limit).Offset(offset).Find(&list)
+
+	if rs.Error != nil {
+		logs.Logger.Error(rs.Error)
+		return nil, 0, dbErr
+	}
+
+	return list, total, nil
+}
+
 func (db *RepoDB[T]) Count(
 	tableName string,
 	where WhereOption,
