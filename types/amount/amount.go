@@ -225,6 +225,21 @@ func (a Amount) Percent() string {
 	return formatFixed(scaled)
 }
 
+// Float64 将 Amount 转换为 float64 类型
+// 注意：对于极大的数值，转换可能会导致精度丢失或溢出（返回 ±Inf）
+func (a Amount) Float64() float64 {
+	v := a.safe()
+	if v.Sign() == 0 {
+		return 0
+	}
+
+	// 使用 big.Rat 进行中转，base 是你的 precisionBig (10^6)
+	// 这比手动做浮点除法更安全
+	rat := new(big.Rat).SetFrac(v, big.NewInt(Precision))
+	f, _ := rat.Float64()
+	return f
+}
+
 // formatFixed 将 big.Int 按 precisionBig (10^6) 格式化为浮点字符串
 func formatFixed(v *big.Int) string {
 	if v.Sign() == 0 {
@@ -233,7 +248,7 @@ func formatFixed(v *big.Int) string {
 
 	isNeg := v.Sign() < 0
 	absV := new(big.Int).Abs(v)
-	base := big.NewInt(1000000) // precisionBig
+	base := big.NewInt(Precision)
 
 	// 分离整数和小数部分
 	intPart := new(big.Int).Quo(absV, base)
