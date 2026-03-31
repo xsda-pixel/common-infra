@@ -4,6 +4,7 @@ import (
 	"database/sql/driver"
 	"fmt"
 	"math/big"
+	"strconv"
 	"strings"
 )
 
@@ -192,59 +193,69 @@ func (a Amount) GreaterOrEqual(o Amount) bool {
 }
 
 // --- 转换与格式化 ---
-func (a Amount) String() string {
-	if a.IsZero() {
+func (a Amount) String(format bool) string {
+	v := a.safe()
+	if v.Sign() == 0 {
 		return "0"
 	}
 
-	v := a.safe()
-	base := precisionBig
-	absV := new(big.Int).Abs(v) // 用绝对值算整数/小数部分，避免负数 Mod 导致 "-1.-500000"
-	intPart := new(big.Int).Quo(absV, base)
-	fracPart := new(big.Int).Mod(absV, base)
+	// 如果不需要格式化（比如存数据库或协议传输），直接输出原始大整数
+	if !format {
+		return v.String()
+	}
 
-	if v.Sign() < 0 {
-		intPart.Neg(intPart)
-	}
-	s := intPart.String()
-	if fracPart.Sign() == 0 {
-		return s
-	}
-	fracStr := strings.TrimRight(fmt.Sprintf("%06d", fracPart.Int64()), "0")
-	return s + "." + fracStr
+	return formatFixed(v)
 }
 
-// Percent 格式化为百分比字符串，如 raw=1_000_000（表示 1.0）输出 "100%"；负数输出如 "-50%"、"-0.5%"
+// Percent 格式化为百分比字符串，如 raw=1_000_000（表示 1.0）输出 "100"；负数输出如 "-50"、"-0.5"
 func (a Amount) Percent() string {
-	if a.IsZero() {
-		return "0%"
-	}
-
 	v := a.safe()
-	// 用绝对值算整数/小数部分，再根据符号补负号，避免负数 Mod 导致错误格式
+	if v.Sign() == 0 {
+		return "0"
+	}
+
+	// 放大 100 倍计算百分比
 	scaled := new(big.Int).Mul(v, big.NewInt(100))
-	absScaled := new(big.Int).Abs(scaled)
-	intPart := new(big.Int).Quo(absScaled, precisionBig)
-	fracPart := new(big.Int).Mod(absScaled, precisionBig)
 
-	neg := v.Sign() < 0
-	if neg {
-		intPart.Neg(intPart)
+	// 复用通用的格式化逻辑
+	return formatFixed(scaled)
+}
+
+// formatFixed 将 big.Int 按 precisionBig (10^6) 格式化为浮点字符串
+func formatFixed(v *big.Int) string {
+	if v.Sign() == 0 {
+		return "0"
 	}
 
-	s := intPart.String()
-	if fracPart.Sign() == 0 {
-		return s + "%"
+	isNeg := v.Sign() < 0
+	absV := new(big.Int).Abs(v)
+	base := big.NewInt(1000000) // precisionBig
+
+	// 分离整数和小数部分
+	intPart := new(big.Int).Quo(absV, base)
+	fracPart := new(big.Int).Mod(absV, base).Int64()
+
+	var b strings.Builder
+	b.Grow(16) // 预分配内存
+
+	if isNeg {
+		b.WriteByte('-')
+	}
+	b.WriteString(intPart.String())
+
+	if fracPart > 0 {
+		b.WriteByte('.')
+		// 手动补齐 6 位零
+		fStr := strconv.FormatInt(fracPart, 10)
+		for i := 0; i < 6-len(fStr); i++ {
+			b.WriteByte('0')
+		}
+		b.WriteString(fStr)
 	}
 
-	fracStr := strings.TrimRight(fmt.Sprintf("%06d", fracPart.Int64()), "0")
-	body := s + "." + fracStr + "%"
-	// 负数且整数部分为 0 时（如 -0.5%），intPart 取负后仍为 0，需显式补 "-"
-	if neg && s == "0" {
-		return "-" + body
-	}
-
-	return body
+	// 统一去除末尾多余的 0 和可能遗留的小数点
+	res := strings.TrimRight(b.String(), "0")
+	return strings.TrimRight(res, ".")
 }
 
 // --- 数据库/JSON 兼容 ---
