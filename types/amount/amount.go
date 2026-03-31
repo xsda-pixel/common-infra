@@ -193,15 +193,19 @@ func (a Amount) GreaterOrEqual(o Amount) bool {
 }
 
 // --- 转换与格式化 ---
-func (a Amount) String(format bool) string {
+func (a Amount) String() string {
 	v := a.safe()
 	if v.Sign() == 0 {
 		return "0"
 	}
 
-	// 如果不需要格式化（比如存数据库或协议传输），直接输出原始大整数
-	if !format {
-		return v.String()
+	return v.String()
+}
+
+func (a Amount) Format() string {
+	v := a.safe()
+	if v.Sign() == 0 {
+		return "0"
 	}
 
 	return formatFixed(v)
